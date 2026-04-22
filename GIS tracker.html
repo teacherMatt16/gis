@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GIS Student Math Support Record</title>
+<style>
+body { font-family: Arial; margin: 20px; background:#f4f6f9; }
+h1 { text-align:center; }
+
+.campus {
+  margin-bottom: 40px;
+  padding: 15px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.grade {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px;
+  text-align: center;
+}
+
+th {
+  background: #2c3e50;
+  color: white;
+}
+
+input {
+  width: 95%;
+  padding: 3px;
+}
+
+button {
+  margin: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Student Support Progress Tracker (Multi-Campus)</h1>
+
+<div id="app"></div>
+
+<script>
+
+// ================= STORAGE =================
+const STORAGE_KEY = "multiCampusMathTracker";
+
+function loadData(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved) return JSON.parse(saved);
+  return {
+    campuses: [
+      createCampus("Campus A"),
+      createCampus("Campus B")
+    ]
+  };
+}
+
+function saveData(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ================= DATA =================
+function createCampus(name){
+  return {
+    name,
+    grades: {
+      "Grade 1": baseGrade(),
+      "Grade 2": baseGrade(),
+      "Grade 3": baseGrade(),
+      "Grade 4": baseGrade(),
+      "Grade 5": baseGrade(),
+      "Grade 6": baseGrade()
+    }
+  };
+}
+
+function baseGrade(){
+  return {
+    worksheets: ["WS1"],
+    students: []
+  };
+}
+
+let data = loadData();
+const app = document.getElementById("app");
+
+// ================= RENDER =================
+function render(){
+  app.innerHTML = "";
+
+  data.campuses.forEach((campus, cIndex) => {
+
+    const campusBox = document.createElement("div");
+    campusBox.className = "campus";
+
+    campusBox.innerHTML = `
+      <h2>
+        <input value="${campus.name}" 
+        onchange="updateCampusName(${cIndex},this.value)"
+        style="font-size:18px;width:200px">
+      </h2>
+    `;
+
+    for(let grade in campus.grades){
+      const g = campus.grades[grade];
+
+      const gradeBox = document.createElement("div");
+      gradeBox.className = "grade";
+
+      gradeBox.innerHTML = `<h3>${grade}</h3>`;
+
+      const btnRow = document.createElement("div");
+
+      const addStudent = document.createElement("button");
+      addStudent.textContent = "Add Student";
+      addStudent.onclick = () => {
+        g.students.push({
+          name: "New Student",
+          scores: Array(g.worksheets.length).fill(""),
+          issue: "",
+          remarks: ""
+        });
+        saveData();
+        render();
+      };
+
+      const addWS = document.createElement("button");
+      addWS.textContent = "Add Worksheet";
+      addWS.onclick = () => {
+        const name = prompt("Worksheet name:");
+        if(!name) return;
+
+        g.worksheets.push(name);
+        g.students.forEach(s => s.scores.push(""));
+        saveData();
+        render();
+      };
+
+      btnRow.appendChild(addStudent);
+      btnRow.appendChild(addWS);
+      gradeBox.appendChild(btnRow);
+
+      const table = document.createElement("table");
+
+      let header = `<tr><th>Student</th>`;
+
+      g.worksheets.forEach((w,i)=>{
+        header += `
+          <th>
+            <input value="${w}" onchange="updateWS(${cIndex},'${grade}',${i},this.value)">
+            <button onclick="removeWS(${cIndex},'${grade}',${i})">x</button>
+          </th>`;
+      });
+
+      header += `<th>Avg</th><th>Issue</th><th>Remarks</th><th>Action</th></tr>`;
+      table.innerHTML = header;
+
+      g.students.forEach((s,i)=>{
+        let row = `<tr>`;
+
+        row += `<td><input value="${s.name}" onchange="updateName(${cIndex},'${grade}',${i},this.value)"></td>`;
+
+        g.worksheets.forEach((_,j)=>{
+          row += `<td>
+            <input type="number"
+            value="${s.scores[j] ?? ''}"
+            onchange="updateScore(${cIndex},'${grade}',${i},${j},this.value)">
+          </td>`;
+        });
+
+        row += `<td>${avg(s.scores)}</td>`;
+        row += `<td><input value="${s.issue}" onchange="updateIssue(${cIndex},'${grade}',${i},this.value)"></td>`;
+        row += `<td><input value="${s.remarks}" onchange="updateRemarks(${cIndex},'${grade}',${i},this.value)"></td>`;
+        row += `<td><button onclick="deleteStudent(${cIndex},'${grade}',${i})">Delete</button></td>`;
+
+        row += `</tr>`;
+        table.innerHTML += row;
+      });
+
+      gradeBox.appendChild(table);
+      campusBox.appendChild(gradeBox);
+    }
+
+    app.appendChild(campusBox);
+  });
+}
+
+// ================= HELPERS =================
+function avg(arr){
+  const v = arr.filter(x => x !== "" && !isNaN(x));
+  if(!v.length) return 0;
+  return (v.reduce((a,b)=>a+Number(b),0)/v.length).toFixed(1);
+}
+
+// ================= ACTIONS =================
+function updateCampusName(i,v){ data.campuses[i].name = v; saveData(); render(); }
+
+function updateName(c,g,i,v){ data.campuses[c].grades[g].students[i].name = v; saveData(); render(); }
+function updateScore(c,g,i,j,v){ data.campuses[c].grades[g].students[i].scores[j] = v; saveData(); render(); }
+function updateIssue(c,g,i,v){ data.campuses[c].grades[g].students[i].issue = v; saveData(); render(); }
+function updateRemarks(c,g,i,v){ data.campuses[c].grades[g].students[i].remarks = v; saveData(); render(); }
+
+function deleteStudent(c,g,i){
+  data.campuses[c].grades[g].students.splice(i,1);
+  saveData();
+  render();
+}
+
+function updateWS(c,g,i,v){
+  data.campuses[c].grades[g].worksheets[i] = v;
+  saveData();
+  render();
+}
+
+function removeWS(c,g,i){
+  const gData = data.campuses[c].grades[g];
+  gData.worksheets.splice(i,1);
+  gData.students.forEach(s => s.scores.splice(i,1));
+  saveData();
+  render();
+}
+
+render();
+
+</script>
+
+</body>
+</html>
